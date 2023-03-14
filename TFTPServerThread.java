@@ -7,6 +7,7 @@ public class TFTPServerThread extends Thread {
     protected DatagramSocket socket = null;
     protected BufferedReader in = null;
     protected boolean running = true;
+    protected boolean initialConnection = true;
 
     public TFTPServerThread() throws IOException {
         this("TFTPServerThread");
@@ -20,17 +21,30 @@ public class TFTPServerThread extends Thread {
     public void run() {
         while(running) {
             try{
-                byte[] bytes = new byte[256];
+                byte[] bytes = new byte[1024];
                 ByteBuffer buffer = ByteBuffer.wrap(bytes);
 
                 // receive
                 DatagramPacket packet = new DatagramPacket(buffer.array(), buffer.remaining());
                 socket.receive(packet);
 
-                // respond
-                String response = "Hello World!";
 
-                buffer = ByteBuffer.wrap(response.getBytes());
+                TFTPPacket receivedPacket = new TFTPPacket(ByteBuffer.wrap(packet.getData()));
+
+                TFTPPacket response;
+                if(initialConnection) {
+                    response = new TFTPPacket(4,1);
+                    initialConnection = false;
+                } else {
+                    response = new TFTPPacket(receivedPacket.getOpCode(),receivedPacket.getBlockNum());
+                }
+
+                System.out.println(receivedPacket.getOpCode());
+
+                // respond
+                //String response = "Hello World!";
+
+                buffer = response.getPacket();
 
                 InetAddress address = packet.getAddress();
                 int port = packet.getPort();

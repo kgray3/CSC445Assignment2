@@ -15,18 +15,24 @@ public class TFTPClient {
         ByteBuffer buffer = ByteBuffer.wrap(bytes);
 
         //System.out.println(buffer.remaining());
+       
 
         InetAddress address = InetAddress.getByName("localhost");
-        DatagramPacket packet = new DatagramPacket(buffer.array(), buffer.remaining(), address, 3000);
+
+        TFTPPacket initialRRQ = new TFTPPacket(1, "test.jpg","octet");
+        DatagramPacket packet = new DatagramPacket(initialRRQ.getPacket().array(), initialRRQ.getPacket().array().length, address, 3000);
+        System.out.println(new TFTPPacket(ByteBuffer.wrap(packet.getData())).getFileName());
         socket.send(packet);
 
         // response
         packet = new DatagramPacket(buffer.array(), buffer.remaining());
         socket.receive(packet);
-
+        if(new TFTPPacket(ByteBuffer.wrap(packet.getData())).getOpCode() == 4) {
+            System.out.println("hell yea");
+        }
         // display response
-        String received = new String(packet.getData(), 0, packet.getLength());
-        System.out.println(received);
+        
+        
 
         socket.close();
 
