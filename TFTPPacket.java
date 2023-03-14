@@ -34,8 +34,10 @@ public class TFTPPacket {
     public TFTPPacket(int blockNum, ByteBuffer data) {
         
         byte[] b = {0,3};
+
+        byte[] c = {0, (byte) blockNum};
         this.packet.put(ByteBuffer.wrap(b));
-        this.packet.put((byte) blockNum);
+        this.packet.put(c);
         this.packet.put(data);
 
     }
@@ -114,8 +116,19 @@ public class TFTPPacket {
     }
 
     public ByteBuffer getData() {
-        byte[] dataArr = Arrays.copyOfRange(this.packet.array(), 4, 1024 - this.packet.remaining());
+            byte[] dataArr = Arrays.copyOfRange(this.packet.array(), 4, getLastIndexOfData(this.packet.array()) + 1);
         return ByteBuffer.wrap(dataArr);
+    }
+
+
+    public static int getLastIndexOfData(byte[] b) {
+        for(int i = b.length - 1; i >= 0; i--) {
+            if(b[i] != 0) {
+                return i;
+            }
+        }
+
+        return 0;
     }
 
 
