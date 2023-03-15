@@ -35,29 +35,25 @@ public class TFTPClient {
         byte[] tempArr = packet.getData();
         long randomServerNum = EncodingHelper.parseKeyPacket(tempArr);
 
-        System.out.println("Client Num: " + randomClientNum);
-        System.out.println("Server Num: " + randomServerNum);
         key = randomClientNum ^ randomServerNum;
 
-        System.out.println(key);
-
         TFTPPacket initialRRQ = new TFTPPacket(1, "https://images.thebrag.com/td/uploads/2022/10/5sos-1-768x435.jpg","octet");
-        packet = new DatagramPacket(initialRRQ.getPacket().array(), initialRRQ.getPacket().array().length, address, 3000);
+        packet = new DatagramPacket(EncodingHelper.performXOR(key,initialRRQ.getPacket().array()), initialRRQ.getPacket().array().length, address, 3000);
         socket.send(packet);
 
         bytes = new byte[1024];
         buffer = ByteBuffer.wrap(bytes);
         packet = new DatagramPacket(buffer.array(), buffer.remaining());
         socket.receive(packet);
-
-        TFTPPacket receivedPacket = new TFTPPacket(ByteBuffer.wrap(packet.getData()));
+        System.out.println(key);
+        TFTPPacket receivedPacket = new TFTPPacket(ByteBuffer.wrap(EncodingHelper.performXOR(key,packet.getData())));
         if(receivedPacket.getOpCode() == 3) {
             while(receivedPacket.getData().array().length == 512) {
                 
                 imageBlockHash.put(receivedPacket.getBlockNum(), receivedPacket.getData());
                 
                 TFTPPacket ack = new TFTPPacket(4,receivedPacket.getBlockNum());
-                packet = new DatagramPacket(ack.getPacket().array(), ack.getPacket().array().length, address, 3000);
+                packet = new DatagramPacket(EncodingHelper.performXOR(key, ack.getPacket().array()), ack.getPacket().array().length, address, 3000);
                 socket.send(packet);
 
                 bytes = new byte[1024];
@@ -66,7 +62,7 @@ public class TFTPClient {
                 
                 socket.receive(packet);
 
-                receivedPacket = new TFTPPacket(ByteBuffer.wrap(packet.getData()));
+                receivedPacket = new TFTPPacket(ByteBuffer.wrap(EncodingHelper.performXOR(key, packet.getData())));
             }
 
             imageBlockHash.put(receivedPacket.getBlockNum(), receivedPacket.getData());

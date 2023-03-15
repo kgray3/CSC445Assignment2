@@ -22,17 +22,12 @@ public class TFTPServerThread extends Thread {
     byte[] bytes = new byte[6];
     ByteBuffer buffer = ByteBuffer.wrap(bytes);
     DatagramPacket packet = new DatagramPacket(buffer.array(), buffer.remaining());
+    long key;
     public void run() {
         while(running) {
+            
             try{
-                long key;
-                
-
-
-                // TFTPPacket receivedPacket = new TFTPPacket(ByteBuffer.wrap(packet.getData()));
-
-                
-
+                System.out.println(key);
                 TFTPPacket response;
                 if(initialConnection) {
                     // receive
@@ -43,14 +38,7 @@ public class TFTPServerThread extends Thread {
                     long randomServerNum = (int) (Math.random() * (999999 - 100000)) + 100000;
 
                     key = randomClientNum ^ randomServerNum;
-                    System.out.println("Client Num: " + randomClientNum);
-                    System.out.println("Server Num: " + randomServerNum);
-                    System.out.println(key);
                     ByteBuffer keyResponse = ByteBuffer.wrap(EncodingHelper.parseLongtoByteArr(randomServerNum));
-
-                
-                    // initialConnection = false;
-                    // buffer = response.getPacket();
 
                     InetAddress address = packet.getAddress();
                     int port = packet.getPort();
@@ -67,7 +55,7 @@ public class TFTPServerThread extends Thread {
                     socket.receive(packet);
 
 
-                    TFTPPacket receivedPacket = new TFTPPacket(ByteBuffer.wrap(packet.getData()));
+                    TFTPPacket receivedPacket = new TFTPPacket(ByteBuffer.wrap(EncodingHelper.performXOR(key,packet.getData())));
                     urlString = receivedPacket.getFileName();
                     initialTFTPConnection = false;
 
@@ -88,27 +76,14 @@ public class TFTPServerThread extends Thread {
                         
                         InetAddress address = packet.getAddress();
                         int port = packet.getPort();
-                        packet = new DatagramPacket(buffer.array(), buffer.array().length, address, port);
+                        packet = new DatagramPacket(EncodingHelper.performXOR(key,buffer.array()), buffer.array().length, address, port);
                         socket.send(packet);
 
                         socket.receive(packet);
-                    //}
 
-                    //response = new TFTPPacket(receivedPacket.getOpCode(),receivedPacket.getBlockNum());
                 }
             }
 
-                // System.out.println(receivedPacket.getOpCode());
-
-                // // respond
-                // //String response = "Hello World!";
-
-                // buffer = response.getPacket();
-
-                // InetAddress address = packet.getAddress();
-                // int port = packet.getPort();
-                // packet = new DatagramPacket(buffer.array(), buffer.remaining(), address, port);
-                // socket.send(packet);
 
             } catch (IOException e) {
                 e.printStackTrace();
@@ -136,25 +111,6 @@ public class TFTPServerThread extends Thread {
 
     }
 
-    // public static long parseKeyPacket(byte[] arr) {
-    //     String x = "";
-    //     for(int i = 0; i < arr.length; i++) {
-    //         x += "" + arr[i];
-    //     }
-
-    //     return Long.parseLong(x);
-    // }
-
-    // public static byte[] parseLongtoByteArr(long l) {
-    //     String longString = "" + l;
-    //     byte[] arr = new byte[longString.length()];
-
-    //     for(int i = 0; i < arr.length; i++) {
-    //         arr[i] = (byte) Integer.parseInt(longString.substring(i, i+1));
-    //     }
-
-    //     return arr;
-    // }
     
     
 }

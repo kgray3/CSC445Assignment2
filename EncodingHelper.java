@@ -18,4 +18,14 @@ public class EncodingHelper {
 
         return arr;
     }
+
+    public static byte[] performXOR(long key, byte[] message) {
+        byte[] result = new byte[message.length];
+
+        for(int i = 0; i < result.length; i++) {
+            result[i] = (byte) (message[i] ^ key);
+        }
+
+        return result;
+    }
 }

@@ -50,7 +50,7 @@ public class TFTPPacket {
     } 
 
     /*
-     * Received packet :)
+     * ACK packet :)
      */
     public TFTPPacket(int opCode, int blockNum) {
 
@@ -62,8 +62,21 @@ public class TFTPPacket {
         
     }
 
+    /*
+     * TFTP error Packet
+     */
+    public TFTPPacket(int errorCode, String errMsg) {
+        byte[] op = {0, 5};
+        byte[] err = {0, (byte) errorCode};
+
+        this.packet.put(op);
+        this.packet.put(err);
+        this.packet.put(errMsg.getBytes());
+        this.packet.put((byte) 0);
+
+    }
+
     // TO-DO -> ADD TFTP OPTIONS FOR TCP SLIDING WINDOW
-    // TO-DO -> ADD ERROR PACKET
     // Standard getters and setters for TFTPPacket class
     public int getOpCode() {
         byte[] p = packet.array();
