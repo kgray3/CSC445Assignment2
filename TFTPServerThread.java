@@ -19,9 +19,10 @@ public class TFTPServerThread extends Thread {
         socket = new DatagramSocket(3000);
     }
     String urlString = "";
-    byte[] bytes = new byte[6];
-    ByteBuffer buffer = ByteBuffer.wrap(bytes);
-    DatagramPacket packet = new DatagramPacket(buffer.array(), buffer.remaining());
+    ByteBuffer previousImage;
+    byte[] bytes;
+    ByteBuffer buffer;
+    DatagramPacket packet;
     long key;
     public void run() {
         while(running) {
@@ -31,7 +32,9 @@ public class TFTPServerThread extends Thread {
                 TFTPPacket response;
                 if(initialConnection) {
                     // receive
-                    
+                    bytes = new byte[6];
+                    buffer = ByteBuffer.wrap(bytes);
+                    packet = new DatagramPacket(buffer.array(), buffer.remaining());
                     socket.receive(packet);
                     byte[] tempArr = packet.getData();
                     long randomClientNum = EncodingHelper.parseKeyPacket(tempArr);
@@ -46,6 +49,7 @@ public class TFTPServerThread extends Thread {
                     socket.send(packet);
                     initialConnection = false;
                     initialTFTPConnection = true;
+                     
                 } else if(initialTFTPConnection){
                     bytes = new byte[1024];
                     buffer = ByteBuffer.wrap(bytes);
@@ -55,14 +59,25 @@ public class TFTPServerThread extends Thread {
                     socket.receive(packet);
 
 
-                    TFTPPacket receivedPacket = new TFTPPacket(ByteBuffer.wrap(EncodingHelper.performXOR(key,packet.getData())));
-                    urlString = receivedPacket.getFileName();
+                    // TFTPPacket receivedPacket = new TFTPPacket(ByteBuffer.wrap(EncodingHelper.performXOR(key,packet.getData())));
+                    // urlString = receivedPacket.getFileName();
                     initialTFTPConnection = false;
 
                 } else {
+                    TFTPPacket receivedPacket = new TFTPPacket(ByteBuffer.wrap(EncodingHelper.performXOR(key,packet.getData())));
                     
-                    // use HTTP to get image
-                    byte[] image = getImageBytesFromURL(urlString);
+                    byte[] image;
+                    // checkcs if requested image is cached
+                    if(urlString.equalsIgnoreCase(receivedPacket.getFileName())) {
+                        image = previousImage.array();
+                    } else{
+                        // use HTTP to get image
+                        urlString = receivedPacket.getFileName();
+                        image = getImageBytesFromURL(urlString);
+                    }
+                    previousImage = ByteBuffer.wrap(image);
+
+                    
 
                     int numOfPackets = (int) Math.ceil(image.length/512.0);
                     for(int i = 0; i < numOfPackets; i++) {
@@ -81,7 +96,10 @@ public class TFTPServerThread extends Thread {
 
                         socket.receive(packet);
 
+                        
+
                 }
+                initialConnection = true;
             }
 
 

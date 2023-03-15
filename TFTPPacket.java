@@ -12,15 +12,22 @@ public class TFTPPacket {
      *      2) a String filename
      *      3) a Sting mode, denoting type of transmission - for this project
      *          we will be using "octet" mode
+     *      4) windowSize - an int specifying the size of the window
+     *         for the sliding window protocol
+     *
      */
-    
-    public TFTPPacket(int opCode, String fileName, String mode) {
-        packet = ByteBuffer.allocate(4 + fileName.length() + mode.length());
+    // add options OACK?
+    public TFTPPacket(int opCode, String fileName, String mode, int windowSize) {
+        packet = ByteBuffer.allocate(7 + fileName.length() + mode.length() + "WindowSize".length());
         byte[] op= {0, (byte) opCode};
         this.packet.put(ByteBuffer.wrap(op));
         this.packet.put(ByteBuffer.wrap(fileName.getBytes()));
         this.packet.put((byte) 0);
         this.packet.put(ByteBuffer.wrap(mode.getBytes()));
+        this.packet.put((byte) 0);
+        this.packet.put("WindowSize".getBytes());
+        this.packet.put((byte) 0 );
+        this.packet.put((byte) windowSize);
         this.packet.put((byte) 0);
 
     }
@@ -61,6 +68,8 @@ public class TFTPPacket {
 
         
     }
+
+    // use special options ack? maybe not
 
     /*
      * TFTP error Packet
@@ -117,6 +126,11 @@ public class TFTPPacket {
             }
        }
        return mode.toString();
+    }
+
+    public int getSlidingWindowSize() {
+        byte[] p = packet.array();
+        return p[getLastIndexOfData(p)];
     }
 
     public ByteBuffer getPacket() {

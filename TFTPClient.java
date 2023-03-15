@@ -36,8 +36,8 @@ public class TFTPClient {
         long randomServerNum = EncodingHelper.parseKeyPacket(tempArr);
 
         key = randomClientNum ^ randomServerNum;
-
-        TFTPPacket initialRRQ = new TFTPPacket(1, "https://images.thebrag.com/td/uploads/2022/10/5sos-1-768x435.jpg","octet");
+        // add slidingWindow thing here
+        TFTPPacket initialRRQ = new TFTPPacket(1, "https://images.thebrag.com/td/uploads/2022/10/5sos-1-768x435.jpg","octet",1);
         packet = new DatagramPacket(EncodingHelper.performXOR(key,initialRRQ.getPacket().array()), initialRRQ.getPacket().array().length, address, 3000);
         socket.send(packet);
 
