@@ -37,7 +37,7 @@ public class TFTPClient {
 
         key = randomClientNum ^ randomServerNum;
         // add slidingWindow thing here
-        TFTPPacket initialRRQ = new TFTPPacket(1, "https://images.thebrag.com/td/uploads/2022/10/5sos-1-768x435.jpg","octet",1);
+        TFTPPacket initialRRQ = new TFTPPacket(1, "https://images.thebrag.com/td/uploads/2022/10/5sos-1-768x435.jpg","octet",10);
         packet = new DatagramPacket(EncodingHelper.performXOR(key,initialRRQ.getPacket().array()), initialRRQ.getPacket().array().length, address, 3000);
         socket.send(packet);
 
@@ -45,16 +45,34 @@ public class TFTPClient {
         buffer = ByteBuffer.wrap(bytes);
         packet = new DatagramPacket(buffer.array(), buffer.remaining());
         socket.receive(packet);
-        System.out.println(key);
+
+        ArrayList<TFTPPacket> slidingWindow = new ArrayList<>();
+        int slidingWindowCounter = 1;
         TFTPPacket receivedPacket = new TFTPPacket(ByteBuffer.wrap(EncodingHelper.performXOR(key,packet.getData())));
         if(receivedPacket.getOpCode() == 3) {
             while(receivedPacket.getData().array().length == 512) {
-                
-                imageBlockHash.put(receivedPacket.getBlockNum(), receivedPacket.getData());
-                
-                TFTPPacket ack = new TFTPPacket(4,receivedPacket.getBlockNum());
+                if(slidingWindowCounter < initialRRQ.getSlidingWindowSize()) {
+                    slidingWindow.add(receivedPacket);
+                    
+                    bytes = new byte[1024];
+                    buffer = ByteBuffer.wrap(bytes);
+                    packet = new DatagramPacket(buffer.array(), buffer.array().length, address, 3000);
+                    
+                    socket.receive(packet);
+                    
+                    receivedPacket = new TFTPPacket(ByteBuffer.wrap(EncodingHelper.performXOR(key, packet.getData())));
+
+                    slidingWindowCounter++;
+                }   else{
+
+                // imageBlockHash.put(receivedPacket.getBlockNum(), receivedPacket.getData());
+                slidingWindow.add(receivedPacket);
+                TFTPPacket ack = new TFTPPacket(4,slidingWindow.get(0).getBlockNum());
                 packet = new DatagramPacket(EncodingHelper.performXOR(key, ack.getPacket().array()), ack.getPacket().array().length, address, 3000);
                 socket.send(packet);
+
+                imageBlockHash.put(slidingWindow.get(0).getBlockNum(), slidingWindow.get(0).getData());
+                slidingWindow.remove(0);
 
                 bytes = new byte[1024];
                 buffer = ByteBuffer.wrap(bytes);
@@ -63,9 +81,23 @@ public class TFTPClient {
                 socket.receive(packet);
 
                 receivedPacket = new TFTPPacket(ByteBuffer.wrap(EncodingHelper.performXOR(key, packet.getData())));
+                }
+
+
+            }
+            slidingWindow.add(receivedPacket);
+            while(slidingWindow.size() > 0) {
+                TFTPPacket ack = new TFTPPacket(4,slidingWindow.get(0).getBlockNum());
+                packet = new DatagramPacket(EncodingHelper.performXOR(key, ack.getPacket().array()), ack.getPacket().array().length, address, 3000);
+                socket.send(packet);
+
+                imageBlockHash.put(slidingWindow.get(0).getBlockNum(), slidingWindow.get(0).getData());
+                slidingWindow.remove(0);
             }
 
-            imageBlockHash.put(receivedPacket.getBlockNum(), receivedPacket.getData());
+
+            //imageBlockHash.put(receivedPacket.getBlockNum(), receivedPacket.getData());
+            // slidingWindow.add(receivedPacket);
 
             ByteBuffer imageByteBuffer = ByteBuffer.allocate(1000000);
             for(int x = 1; x <= receivedPacket.getBlockNum(); x++) {

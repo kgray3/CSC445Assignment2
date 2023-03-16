@@ -64,7 +64,9 @@ public class TFTPServerThread extends Thread {
                     initialTFTPConnection = false;
 
                 } else {
-                    TFTPPacket receivedPacket = new TFTPPacket(ByteBuffer.wrap(EncodingHelper.performXOR(key,packet.getData())));
+                    byte[] receivedPacketData = Arrays.copyOfRange(packet.getData(), 0, TFTPPacket.getLastIndexOfData(packet.getData()));
+                    TFTPPacket receivedPacket = new TFTPPacket(ByteBuffer.wrap(EncodingHelper.performXOR(key,receivedPacketData)));
+                    int windowSize = receivedPacket.getSlidingWindowSize();
                     
                     byte[] image;
                     // checkcs if requested image is cached
@@ -78,27 +80,63 @@ public class TFTPServerThread extends Thread {
                     previousImage = ByteBuffer.wrap(image);
 
                     
+                    ArrayList<TFTPPacket> imageFrames = getImageArrayList(image);
 
-                    int numOfPackets = (int) Math.ceil(image.length/512.0);
-                    for(int i = 0; i < numOfPackets; i++) {
-                        int startingIndex = i*512;
+                    ArrayList<TFTPPacket> slidingWindow = new ArrayList<>();
 
-                        byte[] currentDataByte = Arrays.copyOfRange(image, startingIndex, startingIndex + 512);
+                    //add the initial window :)
+                    for(int i = 0; i < windowSize; i++) {
+                        slidingWindow.add(imageFrames.get(i));
 
-                        response = new TFTPPacket(i+1, ByteBuffer.wrap(currentDataByte));
-
-                        buffer = response.getPacket();
+                        buffer = imageFrames.get(i).getPacket();
                         
                         InetAddress address = packet.getAddress();
                         int port = packet.getPort();
                         packet = new DatagramPacket(EncodingHelper.performXOR(key,buffer.array()), buffer.array().length, address, port);
                         socket.send(packet);
+                    }
 
+                    while(slidingWindow.size() > 0) {
                         socket.receive(packet);
+                        
+                        TFTPPacket clientResponse = new TFTPPacket(ByteBuffer.wrap(EncodingHelper.performXOR(key,packet.getData())));
+
+                        if(clientResponse.getBlockNum() == slidingWindow.get(0).getBlockNum()) {
+                            slidingWindow.remove(0);
+
+                            // check if there are anymore frames to add, if so, add to sliding window
+                            if(slidingWindow.get(slidingWindow.size()-1).getBlockNum() != imageFrames.get(imageFrames.size()-1).getBlockNum()) {
+                                slidingWindow.add(imageFrames.get(slidingWindow.get(slidingWindow.size()-1).getBlockNum()));
+
+                                buffer = slidingWindow.get(slidingWindow.size() - 1).getPacket();
+                        
+                                InetAddress address = packet.getAddress();
+                                int port = packet.getPort();
+                                packet = new DatagramPacket(EncodingHelper.performXOR(key,buffer.array()), buffer.array().length, address, port);
+                                socket.send(packet);
+                            }
+                        }
+                    }
+                //     int numOfPackets = (int) Math.ceil(image.length/512.0);
+                //     for(int i = 0; i < numOfPackets; i++) {
+                //         int startingIndex = i*512;
+
+                //         byte[] currentDataByte = Arrays.copyOfRange(image, startingIndex, startingIndex + 512);
+
+                //         response = new TFTPPacket(i+1, ByteBuffer.wrap(currentDataByte));
+
+                //         buffer = response.getPacket();
+                        
+                //         InetAddress address = packet.getAddress();
+                //         int port = packet.getPort();
+                //         packet = new DatagramPacket(EncodingHelper.performXOR(key,buffer.array()), buffer.array().length, address, port);
+                //         socket.send(packet);
+
+                //         socket.receive(packet);
 
                         
 
-                }
+                // }
                 initialConnection = true;
             }
 
@@ -127,6 +165,23 @@ public class TFTPServerThread extends Thread {
 
         return baos.toByteArray();
 
+    }
+
+    public static ArrayList<TFTPPacket> getImageArrayList(byte[] image) {
+        ArrayList<TFTPPacket> a = new ArrayList<>();
+        int numOfPackets = (int) Math.ceil(image.length/512.0);
+        for(int i = 0; i < numOfPackets; i++) {
+            int startingIndex = i*512;
+
+            byte[] currentDataByte = Arrays.copyOfRange(image, startingIndex, startingIndex + 512);
+
+            TFTPPacket response = new TFTPPacket(i+1, ByteBuffer.wrap(currentDataByte));
+
+            a.add(response);
+                        
+
+        }
+        return a;
     }
 
     

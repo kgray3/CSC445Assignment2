@@ -64,7 +64,9 @@ public class TFTPPacket {
         byte[] op = {0, (byte) opCode};
 
         this.packet.put(ByteBuffer.wrap(op));
-        this.packet.put((byte) blockNum);
+
+        byte[] block = {0, (byte) blockNum};
+        this.packet.put(block);
 
         
     }
