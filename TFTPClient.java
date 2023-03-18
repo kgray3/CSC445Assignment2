@@ -3,6 +3,7 @@ import java.net.*;
 import java.nio.ByteBuffer;
 import java.util.*;
 
+// TO-DO: Add timeouts and ability to drop packets
 public class TFTPClient { 
 
     public static void main(String[] args) throws IOException, InterruptedException {
@@ -14,10 +15,6 @@ public class TFTPClient {
         // send request
         byte[] bytes = new byte[6];
         ByteBuffer buffer = ByteBuffer.wrap(bytes);
-
-        //System.out.println(buffer.remaining());
-       
-        // 100000 - 999999
 
         InetAddress address = InetAddress.getByName("localhost");
 
@@ -63,7 +60,7 @@ public class TFTPClient {
                     receivedPacket = new TFTPPacket(ByteBuffer.wrap(EncodingHelper.performXOR(key, packet.getData())));
 
                     slidingWindowCounter++;
-                }   else{
+                }   else {
 
                 // imageBlockHash.put(receivedPacket.getBlockNum(), receivedPacket.getData());
                 slidingWindow.add(receivedPacket);

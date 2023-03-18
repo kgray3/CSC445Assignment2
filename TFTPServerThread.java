@@ -3,6 +3,7 @@ import java.net.*;
 import java.nio.ByteBuffer;
 import java.util.*;
 
+// TO-DO: add simulation of dropping packets, add time-outs
 public class TFTPServerThread extends Thread {
     protected DatagramSocket socket = null;
     protected BufferedReader in = null;
@@ -58,16 +59,13 @@ public class TFTPServerThread extends Thread {
                     packet = new DatagramPacket(buffer.array(), buffer.remaining());
                     socket.receive(packet);
 
-
-                    // TFTPPacket receivedPacket = new TFTPPacket(ByteBuffer.wrap(EncodingHelper.performXOR(key,packet.getData())));
-                    // urlString = receivedPacket.getFileName();
                     initialTFTPConnection = false;
 
                 } else {
                     byte[] receivedPacketData = Arrays.copyOfRange(packet.getData(), 0, TFTPPacket.getLastIndexOfData(packet.getData()));
                     TFTPPacket receivedPacket = new TFTPPacket(ByteBuffer.wrap(EncodingHelper.performXOR(key,receivedPacketData)));
                     int windowSize = receivedPacket.getSlidingWindowSize();
-                    
+                    boolean dropPacket = false;
                     byte[] image;
                     // checkcs if requested image is cached
                     if(urlString.equalsIgnoreCase(receivedPacket.getFileName())) {
@@ -101,7 +99,7 @@ public class TFTPServerThread extends Thread {
                         
                         TFTPPacket clientResponse = new TFTPPacket(ByteBuffer.wrap(EncodingHelper.performXOR(key,packet.getData())));
 
-                        if(clientResponse.getBlockNum() == slidingWindow.get(0).getBlockNum()) {
+                        if(clientResponse.getBlockNum() == slidingWindow.get(0).getBlockNum() && !dropPacket) {
                             slidingWindow.remove(0);
 
                             // check if there are anymore frames to add, if so, add to sliding window
@@ -115,28 +113,24 @@ public class TFTPServerThread extends Thread {
                                 packet = new DatagramPacket(EncodingHelper.performXOR(key,buffer.array()), buffer.array().length, address, port);
                                 socket.send(packet);
                             }
+                        } else {
+                            // uh oh, a packet was dropped...we gotta resend
+                            
+                            // if received ACK is in sliding window, remove from arrayList
+                            if(blockInArray(clientResponse.getBlockNum(), slidingWindow) > -1) {
+                                slidingWindow.remove(blockInArray(clientResponse.getBlockNum(), slidingWindow));
+
+                            }
+
+                            buffer = slidingWindow.get(0).getPacket();
+
+                            InetAddress address = packet.getAddress();
+                            int port = packet.getPort();
+                            packet = new DatagramPacket(EncodingHelper.performXOR(key,buffer.array()), buffer.array().length, address, port);
+                            socket.send(packet);
                         }
                     }
-                //     int numOfPackets = (int) Math.ceil(image.length/512.0);
-                //     for(int i = 0; i < numOfPackets; i++) {
-                //         int startingIndex = i*512;
 
-                //         byte[] currentDataByte = Arrays.copyOfRange(image, startingIndex, startingIndex + 512);
-
-                //         response = new TFTPPacket(i+1, ByteBuffer.wrap(currentDataByte));
-
-                //         buffer = response.getPacket();
-                        
-                //         InetAddress address = packet.getAddress();
-                //         int port = packet.getPort();
-                //         packet = new DatagramPacket(EncodingHelper.performXOR(key,buffer.array()), buffer.array().length, address, port);
-                //         socket.send(packet);
-
-                //         socket.receive(packet);
-
-                        
-
-                // }
                 initialConnection = true;
             }
 
@@ -182,6 +176,15 @@ public class TFTPServerThread extends Thread {
 
         }
         return a;
+    }
+
+    public static int blockInArray(int blockNum, ArrayList<TFTPPacket> p) {
+        for(int i = 0; i < p.size(); i++) {
+            if(p.get(i).getBlockNum() == blockNum) {
+                return i;
+            }
+        }
+        return -1;
     }
 
     
