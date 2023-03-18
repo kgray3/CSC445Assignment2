@@ -29,8 +29,8 @@ public class TFTPServerThread extends Thread {
         while(running) {
             
             try{
-                System.out.println(key);
-                TFTPPacket response;
+                // System.out.println(key);
+                // TFTPPacket response;
                 if(initialConnection) {
                     // receive
                     bytes = new byte[6];

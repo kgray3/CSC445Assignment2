@@ -16,9 +16,8 @@ public class TFTPPacket {
      *         for the sliding window protocol
      *
      */
-    // add options OACK?
-    public TFTPPacket(int opCode, String fileName, String mode, int windowSize) {
-        packet = ByteBuffer.allocate(7 + fileName.length() + mode.length() + "WindowSize".length());
+    public TFTPPacket(int opCode, String fileName, String mode, int windowSize, String dropPackets) {
+        packet = ByteBuffer.allocate(9 + fileName.length() + mode.length() + "WindowSize".length() +"DropPackets".length() + dropPackets.getBytes().length);
         byte[] op= {0, (byte) opCode};
         this.packet.put(ByteBuffer.wrap(op));
         this.packet.put(ByteBuffer.wrap(fileName.getBytes()));
@@ -28,6 +27,10 @@ public class TFTPPacket {
         this.packet.put("WindowSize".getBytes());
         this.packet.put((byte) 0 );
         this.packet.put((byte) windowSize);
+        this.packet.put((byte) 0);
+        this.packet.put("DropPackets".getBytes());
+        this.packet.put((byte) 0);
+        this.packet.put(dropPackets.getBytes());
         this.packet.put((byte) 0);
 
     }
@@ -132,7 +135,16 @@ public class TFTPPacket {
 
     public int getSlidingWindowSize() {
         byte[] p = packet.array();
-        return p[getLastIndexOfData(p)];
+        int zeroCounter =0;
+
+        for(int i = 0; i < p.length; i++) {
+            if(zeroCounter == 4 && p[i] != 0) {
+                return p[i];
+            } else if(p[i] == 0) {
+                zeroCounter++;
+            }
+        }
+        return 1;
     }
 
     public ByteBuffer getPacket() {

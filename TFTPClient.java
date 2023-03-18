@@ -7,6 +7,16 @@ import java.util.*;
 public class TFTPClient { 
 
     public static void main(String[] args) throws IOException, InterruptedException {
+        // command line arg 0 = windowsize, 1 = drop packets
+
+        String dropPackets = "f";
+
+        if(args.length > 1) {
+            dropPackets = "t";
+        }
+
+        int windowSize = Integer.parseInt(args[0]);
+
         HashMap<Integer, ByteBuffer> imageBlockHash = new HashMap<>();
         long key;
         // create Datagram socket
@@ -34,7 +44,7 @@ public class TFTPClient {
 
         key = randomClientNum ^ randomServerNum;
         // add slidingWindow thing here
-        TFTPPacket initialRRQ = new TFTPPacket(1, "https://images.thebrag.com/td/uploads/2022/10/5sos-1-768x435.jpg","octet",10);
+        TFTPPacket initialRRQ = new TFTPPacket(1, "https://images.thebrag.com/td/uploads/2022/10/5sos-1-768x435.jpg","octet",windowSize, dropPackets);
         packet = new DatagramPacket(EncodingHelper.performXOR(key,initialRRQ.getPacket().array()), initialRRQ.getPacket().array().length, address, 3000);
         socket.send(packet);
 
