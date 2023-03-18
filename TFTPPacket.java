@@ -133,6 +133,21 @@ public class TFTPPacket {
        return mode.toString();
     }
 
+    public boolean getDropPacket() {
+        byte[] p = this.packet.array();
+
+        byte[] dropPacket = {p[getLastIndexOfData(p)]};
+
+        String choice = StandardCharsets.UTF_8.decode(ByteBuffer.wrap(dropPacket)).toString();
+
+        if(choice.equalsIgnoreCase("t")) {
+            return true;
+        } else {
+            return false;
+        }
+
+    }
+
     public int getSlidingWindowSize() {
         byte[] p = packet.array();
         int zeroCounter =0;

@@ -10,6 +10,7 @@ public class TFTPServerThread extends Thread {
     protected boolean running = true;
     protected boolean initialConnection = true;
     protected boolean initialTFTPConnection = false;
+    protected boolean dropPackets = false;
 
     public TFTPServerThread() throws IOException {
         this("TFTPServerThread");
@@ -65,7 +66,11 @@ public class TFTPServerThread extends Thread {
                     byte[] receivedPacketData = Arrays.copyOfRange(packet.getData(), 0, TFTPPacket.getLastIndexOfData(packet.getData()));
                     TFTPPacket receivedPacket = new TFTPPacket(ByteBuffer.wrap(EncodingHelper.performXOR(key,receivedPacketData)));
                     int windowSize = receivedPacket.getSlidingWindowSize();
+                    
                     boolean dropPacket = false;
+                    
+
+                    dropPackets = receivedPacket.getDropPacket();
                     byte[] image;
                     // checkcs if requested image is cached
                     if(urlString.equalsIgnoreCase(receivedPacket.getFileName())) {
@@ -96,6 +101,13 @@ public class TFTPServerThread extends Thread {
 
                     while(slidingWindow.size() > 0) {
                         socket.receive(packet);
+
+                        if(dropPackets) {
+                            // calc 1% drop for each packet that comes through
+                            if((int)((Math.random()* 100) + 1) == 1) {
+                                dropPacket = true;
+                            }
+                        }
                         
                         TFTPPacket clientResponse = new TFTPPacket(ByteBuffer.wrap(EncodingHelper.performXOR(key,packet.getData())));
 
@@ -114,16 +126,17 @@ public class TFTPServerThread extends Thread {
                                 socket.send(packet);
                             }
                         } else {
-                            // uh oh, a packet was dropped...we gotta resend
                             
-                            // if received ACK is in sliding window, remove from arrayList
-                            if(blockInArray(clientResponse.getBlockNum(), slidingWindow) > -1) {
-                                slidingWindow.remove(blockInArray(clientResponse.getBlockNum(), slidingWindow));
+                            // uh oh, a packet was dropped...we gotta resend
 
-                            }
 
+
+                            TFTPPacket tempP = slidingWindow.get(0);
+                            dropPacket = false;
                             buffer = slidingWindow.get(0).getPacket();
 
+                            slidingWindow.remove(0);
+                            slidingWindow.add(tempP);
                             InetAddress address = packet.getAddress();
                             int port = packet.getPort();
                             packet = new DatagramPacket(EncodingHelper.performXOR(key,buffer.array()), buffer.array().length, address, port);
