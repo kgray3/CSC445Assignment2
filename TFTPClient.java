@@ -33,7 +33,7 @@ public class TFTPClient {
 
         DatagramPacket packet = new DatagramPacket(keyResponse.array(), keyResponse.array().length, address, 3000);
 
-        
+        long startTime = System.nanoTime();
         socket.send(packet);
 
         packet = new DatagramPacket(buffer.array(), buffer.array().length);
@@ -102,7 +102,9 @@ public class TFTPClient {
                 slidingWindow.remove(0);
             }
 
+            long duration = System.nanoTime() - startTime;
 
+           
             //imageBlockHash.put(receivedPacket.getBlockNum(), receivedPacket.getData());
             // slidingWindow.add(receivedPacket);
 
@@ -111,11 +113,15 @@ public class TFTPClient {
                 imageByteBuffer.put(imageBlockHash.get(x).array());
             }
 
+
             OutputStream os = new FileOutputStream("image.jpg");
 
             byte[] finalImage = Arrays.copyOfRange(imageByteBuffer.array(), 0, TFTPPacket.getLastIndexOfData(imageByteBuffer.array()));
             
-            
+            double throughput = ((finalImage.length)/Math.pow(2, 20)) * (duration/1000000000.00);
+
+            System.out.println(throughput);
+
             os.write(finalImage);
 
 
