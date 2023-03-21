@@ -5,23 +5,27 @@ import java.util.*;
 
 // TO-DO: Add timeouts
 public class TFTPClient { 
-
+    private static HashMap<Integer, ByteBuffer> imageBlockHash = new HashMap<>();
     public static void main(String[] args) throws IOException, InterruptedException {
         // command line arg 0 = windowsize, 1 = drop packets
-
-        String dropPackets = "t";
+        boolean dropPackets =false;
+        String dP = "t";
         int port = 26925;
         // if(args.length > 1) {
-        //    dropPackets = "t";
+        //    dP = "t";
         // }
 
-        int windowSize = 4;//Integer.parseInt(args[0]);
+        if(dP.equalsIgnoreCase("t")) {
+            dropPackets = true;
+        }
 
-        HashMap<Integer, ByteBuffer> imageBlockHash = new HashMap<>();
+        int windowSize = 50;//Integer.parseInt(args[0]);
+
+        
         long key;
         // create Datagram socket
         DatagramSocket socket = new DatagramSocket();
-        socket.setSoTimeout(10000);
+        socket.setSoTimeout(8000);
 
         // send request
         byte[] bytes = new byte[6];
@@ -45,7 +49,7 @@ public class TFTPClient {
 
         key = randomClientNum ^ randomServerNum;
         // add slidingWindow thing here
-        TFTPPacket initialRRQ = new TFTPPacket(1, "https://upload.wikimedia.org/wikipedia/en/e/ed/5_Seconds_of_Summer_-_5SOS5.png","octet",windowSize, dropPackets);
+        TFTPPacket initialRRQ = new TFTPPacket(1, "https://upload.wikimedia.org/wikipedia/en/e/ed/5_Seconds_of_Summer_-_5SOS5.png","octet",windowSize, dP);
         packet = new DatagramPacket(EncodingHelper.performXOR(key,initialRRQ.getPacket().array()), initialRRQ.getPacket().array().length, address, port);
         socket.send(packet);
 
@@ -54,17 +58,21 @@ public class TFTPClient {
         packet = new DatagramPacket(buffer.array(), buffer.remaining());
         socket.receive(packet);
         
-        boolean firstPass = true;
         int expectedBlockNum = 1;
         ArrayList<TFTPPacket> slidingWindow = new ArrayList<>();
         int slidingWindowCounter = 1;
         TFTPPacket receivedPacket = new TFTPPacket(ByteBuffer.wrap(EncodingHelper.performXOR(key,packet.getData())));
+        boolean dropPacket = false;
         if(receivedPacket.getOpCode() == 3) {
             while(receivedPacket.getData().array().length == 512) {
+                //boolean dropPacket = false;
                 if((slidingWindowCounter < expectedBlockNum + initialRRQ.getSlidingWindowSize() - 1)) {
 
-                    //System.out.println("We back in the for loop babyyy BlockNum =" + receivedPacket.getBlockNum() );
-                    slidingWindow.add(receivedPacket);
+                    if(!dropPacket) {
+                        slidingWindow.add(receivedPacket);
+                        System.out.println("We back in the for loop mom BlockNum =" + receivedPacket.getBlockNum() );
+                    }
+                    
 
                     bytes = new byte[1024];
                     buffer = ByteBuffer.wrap(bytes);
@@ -74,6 +82,10 @@ public class TFTPClient {
                         socket.receive(packet);
                         receivedPacket = new TFTPPacket(ByteBuffer.wrap(EncodingHelper.performXOR(key, packet.getData())));
                     
+                        if(dropPacket) {
+                            slidingWindow.add(receivedPacket);
+                            System.out.println("We back in the for loop babyyy BlockNum =" + receivedPacket.getBlockNum() );
+                        }
                         slidingWindowCounter++;
                     } catch(SocketTimeoutException e) {
                         System.out.println("We timed out in the for loop bby");
@@ -82,10 +94,20 @@ public class TFTPClient {
                     }
                      
                 }   else {
-                        firstPass = false;
+                        if(!dropPacket){
+                        slidingWindow.add(receivedPacket);
+                        }
+                        dropPacket = false;
+                        if(dropPackets) {
+                        // calc 1% drop for each packet that comes through
+                            if((int)((Math.random()* 100) + 1) <= 1) {
+                            dropPacket = true;
+                            }
+                        }
                         slidingWindowCounter = 1000000000;
                         //add last packet of the window
-                        slidingWindow.add(receivedPacket);
+
+                        
                         //expectedBlockNum = slidingWindow.get(0).getBlockNum();
                         // edge case for server not receiving ack
                         if(receivedPacket.getBlockNum() < expectedBlockNum) {
@@ -96,7 +118,7 @@ public class TFTPClient {
                             slidingWindowCounter = expectedBlockNum;
     
                         }
-                        else if(slidingWindow.get(0).getBlockNum() == expectedBlockNum) {
+                        else if(slidingWindow.get(0).getBlockNum() == expectedBlockNum && !dropPacket) {
 
                             System.out.println("EQUALITY: " + expectedBlockNum);
                             TFTPPacket ack = new TFTPPacket(4,slidingWindow.get(0).getBlockNum());
@@ -117,10 +139,9 @@ public class TFTPClient {
                             socket.receive(packet);
                             receivedPacket = new TFTPPacket(ByteBuffer.wrap(EncodingHelper.performXOR(key, packet.getData())));
                     }  else {
-                        System.out.println("UH OH, our received block number is not right -> " + "Expected: " + expectedBlockNum);
-                        System.out.println("Received: " + slidingWindow.get(0).getBlockNum());
+                        System.out.println("Simulating dropped packet for " + expectedBlockNum);
                         slidingWindow.clear();
-                        slidingWindowCounter = expectedBlockNum;
+                        slidingWindowCounter = expectedBlockNum - 1;
                     }
                 
                 }
@@ -130,14 +151,79 @@ public class TFTPClient {
            
             slidingWindow.add(receivedPacket);
         
-            while(slidingWindow.size() > 0) {
-                TFTPPacket ack = new TFTPPacket(4,slidingWindow.get(0).getBlockNum());
-                packet = new DatagramPacket(EncodingHelper.performXOR(key, ack.getPacket().array()), ack.getPacket().array().length, address, port);
-                socket.send(packet);
+            while(slidingWindow.size() > 0 || dropPacket) {
+                if((slidingWindowCounter < expectedBlockNum + initialRRQ.getSlidingWindowSize())) {
+                    
 
-                imageBlockHash.put(slidingWindow.get(0).getBlockNum(), slidingWindow.get(0).getData());
-                slidingWindow.remove(0);
+                    bytes = new byte[1024];
+                    buffer = ByteBuffer.wrap(bytes);
+                    packet = new DatagramPacket(buffer.array(), buffer.array().length, address, port);
+            
+                    try{
+                        socket.receive(packet);
+                        
+                        receivedPacket = new TFTPPacket(ByteBuffer.wrap(EncodingHelper.performXOR(key, packet.getData())));
+                        System.out.println("We back in the for loop mom BlockNum =" + receivedPacket.getBlockNum() );
+                        slidingWindow.add(receivedPacket);
+
+                        //System.out.println(receivedPacket.getData().array().length);
+                        // System.out.println(slidingWindowCounter);
+                        // System.out.println(expectedBlockNum + initialRRQ.getSlidingWindowSize());
+                        // System.out.println(receivedPacket.getData().array().length);
+                        if(receivedPacket.getData().array().length != 512) {
+                            slidingWindowCounter = expectedBlockNum + initialRRQ.getSlidingWindowSize();
+                        } else {
+                            slidingWindowCounter++;
+                        }
+                        
+                    } catch(SocketTimeoutException e) {
+                        System.out.println("We timed out in the for loop bby");
+                        // if we no longer receive from server, skip to ACK
+                        slidingWindowCounter = expectedBlockNum + initialRRQ.getSlidingWindowSize();
+                    }
+
+                } else {
+                    if(!dropPacket){
+                        slidingWindow.add(receivedPacket);
+                        }
+                        dropPacket = false;
+                        if(dropPackets) {
+                        // calc 1% drop for each packet that comes through
+                            if((int)((Math.random()* 100) + 1) <= 1) {
+                                dropPacket = true;
+                            }
+                        }
+                    slidingWindowCounter = 1000000000;
+                    //add last packet of the window
+                    
+                    
+                    if(receivedPacket.getBlockNum() < expectedBlockNum) {
+
+                        System.out.println("[Error] Received: " + receivedPacket.getBlockNum() + " Expected: " + expectedBlockNum);
+                        slidingWindow.clear();
+                        expectedBlockNum = receivedPacket.getBlockNum();
+                        slidingWindowCounter = expectedBlockNum;
+
+                    }
+                    else if(slidingWindow.get(0).getBlockNum() == expectedBlockNum && !dropPacket) {
+                        System.out.println("EQUALITY: " + expectedBlockNum);
+                        TFTPPacket ack = new TFTPPacket(4,slidingWindow.get(0).getBlockNum());
+                        packet = new DatagramPacket(EncodingHelper.performXOR(key, ack.getPacket().array()), ack.getPacket().array().length, address, port);
+                        socket.send(packet);
+
+                        imageBlockHash.put(slidingWindow.get(0).getBlockNum(), slidingWindow.get(0).getData());
+                        slidingWindow.remove(0);
+
+                        expectedBlockNum++;
+                    } else {
+                        System.out.println("Simulating dropped packet for " + expectedBlockNum);
+                        // dropPacket = false;
+                        slidingWindow.clear();
+                        slidingWindowCounter = expectedBlockNum;
+                    }
+
             }
+        }
 
             long duration = System.nanoTime() - startTime;
 
@@ -169,4 +255,8 @@ public class TFTPClient {
 
 
     }
+
+
+
+
 }

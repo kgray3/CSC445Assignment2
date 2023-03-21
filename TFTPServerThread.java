@@ -105,12 +105,12 @@ public class TFTPServerThread extends Thread {
                     }
 
                     while(slidingWindow.size() > 0) {
-                        if(dropPackets) {
-                            // calc 1% drop for each packet that comes through
-                            if((int)((Math.random()* 100) + 1) == 1) {
-                                dropPacket = true;
-                            }
-                        }
+                        // if(dropPackets) {
+                        //     // calc 1% drop for each packet that comes through
+                        //     if((int)((Math.random()* 100) + 1) == 1) {
+                        //         dropPacket = true;
+                        //     }
+                        // }
 
                         try
                         {
@@ -118,7 +118,7 @@ public class TFTPServerThread extends Thread {
                         
                             TFTPPacket clientResponse = new TFTPPacket(ByteBuffer.wrap(EncodingHelper.performXOR(key,packet.getData())));
 
-                            if(clientResponse.getBlockNum() == slidingWindow.get(0).getBlockNum() && !dropPacket) {
+                            if(clientResponse.getBlockNum() == slidingWindow.get(0).getBlockNum() ) {
                             
 
                             // check if there are anymore frames to add, if so, add to sliding window
@@ -133,47 +133,45 @@ public class TFTPServerThread extends Thread {
                                     socket.send(packet);
                                 }
                                 slidingWindow.remove(0);
-                            } else {
-                                
-                                System.out.println("Received: " + clientResponse.getBlockNum() + " Expected: " + slidingWindow.get(0).getBlockNum());
-                                // uh oh, a packet was dropped...we gotta resend the block
-
-                                TFTPPacket tempP = slidingWindow.get(0);
-                                dropPacket = false;
-                                buffer = slidingWindow.get(0).getPacket();
-
-
-                                for(int i = slidingWindow.get(0).getBlockNum(); i < slidingWindow.get(0).getBlockNum() + windowSize; i++) {
-            
-                                    buffer = imageFrames.get(i-1).getPacket();
-                                    System.out.println(imageFrames.get(i-1).getBlockNum());
-                                    
-                                    InetAddress address = packet.getAddress();
-                                    int port = packet.getPort();
-                                    packet = new DatagramPacket(EncodingHelper.performXOR(key,buffer.array()), buffer.array().length, address, port);
-                                    socket.send(packet);
-                                        
-                                }
-                                //resend block
-                                // InetAddress address = packet.getAddress();
-                                // int port = packet.getPort();
-                                // packet = new DatagramPacket(EncodingHelper.performXOR(key,buffer.array()), buffer.array().length, address, port);
-                                // socket.send(packet);
                             }
+                                // } else {
+                                
+                            //     System.out.println("Simulating drop for " + slidingWindow.get(0).getBlockNum());
+                            //     // uh oh, a packet was dropped...we gotta resend the block
+
+                            //     TFTPPacket tempP = slidingWindow.get(0);
+                            //     dropPacket = false;
+                            //     buffer = slidingWindow.get(0).getPacket();
+
+
+                            //     for(int i = slidingWindow.get(0).getBlockNum(); i < slidingWindow.get(0).getBlockNum() + windowSize; i++) {
+                            //         if(i < imageFrames.size()) {
+                            //             buffer = imageFrames.get(i-1).getPacket();
+                            //             System.out.println(imageFrames.get(i-1).getBlockNum());
+                                    
+                            //             InetAddress address = packet.getAddress();
+                            //             int port = packet.getPort();
+                            //             packet = new DatagramPacket(EncodingHelper.performXOR(key,buffer.array()), buffer.array().length, address, port);
+                            //             socket.send(packet);
+                            //         }
+                            //     }
+
+                            // }
                         } catch(SocketTimeoutException e) {
                             System.out.println("Oh god, we timed out for " + slidingWindow.get(0).getBlockNum());
                             // if a timeout occurs, resend the window
                             buffer = slidingWindow.get(0).getPacket();
 
                             for(int i = slidingWindow.get(0).getBlockNum(); i < slidingWindow.get(0).getBlockNum() + windowSize; i++) {
-        
-                                buffer = imageFrames.get(i).getPacket();
+                                if(i <= imageFrames.size()) {
+                                    buffer = imageFrames.get(i-1).getPacket();
+                                    System.out.println(imageFrames.get(i-1).getBlockNum());
                                 
-                                InetAddress address = packet.getAddress();
-                                int port = packet.getPort();
-                                packet = new DatagramPacket(EncodingHelper.performXOR(key,buffer.array()), buffer.array().length, address, port);
-                                socket.send(packet);
-                                    
+                                    InetAddress address = packet.getAddress();
+                                    int port = packet.getPort();
+                                    packet = new DatagramPacket(EncodingHelper.performXOR(key,buffer.array()), buffer.array().length, address, port);
+                                    socket.send(packet);
+                                }
                             }
                         }
                     }

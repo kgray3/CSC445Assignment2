@@ -100,7 +100,7 @@ public class TFTPPacket {
     }
 
     public String getFileName() {
-        byte[] filename = new byte[256];
+        byte[] filename = new byte[1024];
         
 
         for(int i = 2; i < packet.array().length; i++) {
@@ -154,7 +154,7 @@ public class TFTPPacket {
 
         for(int i = 0; i < p.length; i++) {
             if(zeroCounter == 4 && p[i] != 0) {
-                return p[i];
+                return p[i] & 0xff;
             } else if(p[i] == 0) {
                 zeroCounter++;
             }
