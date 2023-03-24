@@ -3,6 +3,10 @@ import java.net.*;
 import java.nio.ByteBuffer;
 import java.util.*;
 
+import packets.ACKPacket;
+import packets.DataPacket;
+import packets.RequestPacket;
+
 // TO-DO: add simulation of dropping packets, add time-outs
 public class TFTPServerThread extends Thread {
     protected DatagramSocket socket = null;
@@ -19,7 +23,6 @@ public class TFTPServerThread extends Thread {
     public TFTPServerThread(String name) throws IOException {
         super(name);
         socket = new DatagramSocket(26925);
-        socket.setSoTimeout(5000);
     }
 
     String urlString = "";
@@ -34,8 +37,8 @@ public class TFTPServerThread extends Thread {
             
             try{
                 System.out.println(key);
-                // TFTPPacket response;
                 if(initialConnection) {
+                    socket.setSoTimeout(60000);
                     // receive
                     bytes = new byte[6];
                     buffer = ByteBuffer.wrap(bytes);
@@ -66,12 +69,10 @@ public class TFTPServerThread extends Thread {
                     initialTFTPConnection = false;
 
                 } else {
-                    byte[] receivedPacketData = Arrays.copyOfRange(packet.getData(), 0, TFTPPacket.getLastIndexOfData(packet.getData()));
-                    TFTPPacket receivedPacket = new TFTPPacket(ByteBuffer.wrap(EncodingHelper.performXOR(key,receivedPacketData)));
+                    socket.setSoTimeout(1000);
+                    byte[] receivedPacketData = Arrays.copyOfRange(packet.getData(), 0, DataPacket.getLastIndexOfData(packet.getData()));
+                    RequestPacket receivedPacket = new RequestPacket(ByteBuffer.wrap(EncodingHelper.performXOR(key,receivedPacketData)));
                     int windowSize = receivedPacket.getSlidingWindowSize();
-                    
-                    boolean dropPacket = false;
-                    
 
                     dropPackets = receivedPacket.getDropPacket();
                     byte[] image;
@@ -86,9 +87,9 @@ public class TFTPServerThread extends Thread {
                     previousImage = ByteBuffer.wrap(image);
 
                     
-                    ArrayList<TFTPPacket> imageFrames = getImageArrayList(image);
+                    ArrayList<DataPacket> imageFrames = getImageArrayList(image);
 
-                    ArrayList<TFTPPacket> slidingWindow = new ArrayList<>();
+                    ArrayList<DataPacket> slidingWindow = new ArrayList<>();
 
                     //add the initial window :)
                     for(int i = 0; i < windowSize; i++) {
@@ -105,18 +106,12 @@ public class TFTPServerThread extends Thread {
                     }
 
                     while(slidingWindow.size() > 0) {
-                        // if(dropPackets) {
-                        //     // calc 1% drop for each packet that comes through
-                        //     if((int)((Math.random()* 100) + 1) == 1) {
-                        //         dropPacket = true;
-                        //     }
-                        // }
 
                         try
                         {
                             socket.receive(packet);
                         
-                            TFTPPacket clientResponse = new TFTPPacket(ByteBuffer.wrap(EncodingHelper.performXOR(key,packet.getData())));
+                            ACKPacket clientResponse = new ACKPacket(ByteBuffer.wrap(EncodingHelper.performXOR(key,packet.getData())));
 
                             if(clientResponse.getBlockNum() == slidingWindow.get(0).getBlockNum() ) {
                             
@@ -134,31 +129,9 @@ public class TFTPServerThread extends Thread {
                                 }
                                 slidingWindow.remove(0);
                             }
-                                // } else {
                                 
-                            //     System.out.println("Simulating drop for " + slidingWindow.get(0).getBlockNum());
-                            //     // uh oh, a packet was dropped...we gotta resend the block
-
-                            //     TFTPPacket tempP = slidingWindow.get(0);
-                            //     dropPacket = false;
-                            //     buffer = slidingWindow.get(0).getPacket();
-
-
-                            //     for(int i = slidingWindow.get(0).getBlockNum(); i < slidingWindow.get(0).getBlockNum() + windowSize; i++) {
-                            //         if(i < imageFrames.size()) {
-                            //             buffer = imageFrames.get(i-1).getPacket();
-                            //             System.out.println(imageFrames.get(i-1).getBlockNum());
-                                    
-                            //             InetAddress address = packet.getAddress();
-                            //             int port = packet.getPort();
-                            //             packet = new DatagramPacket(EncodingHelper.performXOR(key,buffer.array()), buffer.array().length, address, port);
-                            //             socket.send(packet);
-                            //         }
-                            //     }
-
-                            // }
                         } catch(SocketTimeoutException e) {
-                            System.out.println("Oh god, we timed out for " + slidingWindow.get(0).getBlockNum());
+                            System.out.println("Oh no, we timed out for " + slidingWindow.get(0).getBlockNum());
                             // if a timeout occurs, resend the window
                             buffer = slidingWindow.get(0).getPacket();
 
@@ -205,15 +178,15 @@ public class TFTPServerThread extends Thread {
 
     }
 
-    public static ArrayList<TFTPPacket> getImageArrayList(byte[] image) {
-        ArrayList<TFTPPacket> a = new ArrayList<>();
+    public static ArrayList<DataPacket> getImageArrayList(byte[] image) {
+        ArrayList<DataPacket> a = new ArrayList<>();
         int numOfPackets = (int) Math.ceil(image.length / 512.0);
         for (int i = 0; i < numOfPackets; i++) {
             int startingIndex = i * 512;
 
             byte[] currentDataByte = Arrays.copyOfRange(image, startingIndex, startingIndex + 512);
 
-            TFTPPacket response = new TFTPPacket(i + 1, ByteBuffer.wrap(currentDataByte));
+            DataPacket response = new DataPacket(i + 1, ByteBuffer.wrap(currentDataByte));
 
             a.add(response);
 
@@ -221,14 +194,7 @@ public class TFTPServerThread extends Thread {
         return a;
     }
 
-    public static int blockInArray(int blockNum, ArrayList<TFTPPacket> p) {
-        for (int i = 0; i < p.size(); i++) {
-            if (p.get(i).getBlockNum() == blockNum) {
-                return i;
-            }
-        }
-        return -1;
-    }
+
 
 
 }
