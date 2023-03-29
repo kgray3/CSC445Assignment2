@@ -24,7 +24,7 @@ public class TFTPClient {
             dropPackets = true;
         }
 
-        int windowSize = 10;//Integer.parseInt(args[0]);
+        int windowSize = 50;//Integer.parseInt(args[0]);
 
         
         long key;
@@ -36,7 +36,7 @@ public class TFTPClient {
         byte[] bytes = new byte[6];
         ByteBuffer buffer = ByteBuffer.wrap(bytes);
 
-        InetAddress address = InetAddress.getByName("localhost");
+        InetAddress address = InetAddress.getByName("pi.cs.oswego.edu");
 
         long randomClientNum = (int) (Math.random() * (999999 - 100000)) + 100000;
         ByteBuffer keyResponse = ByteBuffer.wrap(EncodingHelper.parseLongtoByteArr(randomClientNum));
@@ -100,7 +100,7 @@ public class TFTPClient {
                     }
                      
                 }   else {
-                        if(!dropPacket){
+                        if(!dropPacket && receivedPacket.getData().array().length == 512){
                         slidingWindow.add(receivedPacket);
                         }
                         dropPacket = false;
