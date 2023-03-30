@@ -9,12 +9,11 @@ import packets.RequestPacket;
 
 // TO-DO: add simulation of dropping packets, add time-outs
 public class TFTPServerThread extends Thread {
-    protected DatagramSocket socket = null;
+    protected static DatagramSocket socket = null;
     protected BufferedReader in = null;
     protected boolean running = true;
     protected boolean initialConnection = true;
     protected boolean initialTFTPConnection = false;
-    protected boolean dropPackets = false;
 
     public TFTPServerThread() throws IOException {
         this("TFTPServerThread");
@@ -29,8 +28,8 @@ public class TFTPServerThread extends Thread {
     ByteBuffer previousImage;
     byte[] bytes;
     ByteBuffer buffer;
-    DatagramPacket packet;
-    long key;
+    static DatagramPacket packet;
+    static long key;
 
     public void run() {
         while(running) {
@@ -74,7 +73,6 @@ public class TFTPServerThread extends Thread {
                     RequestPacket receivedPacket = new RequestPacket(ByteBuffer.wrap(EncodingHelper.performXOR(key,receivedPacketData)));
                     int windowSize = receivedPacket.getSlidingWindowSize();
 
-                    dropPackets = receivedPacket.getDropPacket();
                     byte[] image;
                     // checkcs if requested image is cached
                     if(urlString.equalsIgnoreCase(receivedPacket.getFileName())) {
@@ -92,18 +90,8 @@ public class TFTPServerThread extends Thread {
                     ArrayList<DataPacket> slidingWindow = new ArrayList<>();
 
                     //add the initial window :)
-                    for(int i = 0; i < windowSize; i++) {
-                        if(i < imageFrames.size()) {
-                            slidingWindow.add(imageFrames.get(i));
+                    sendWindow(slidingWindow, imageFrames, windowSize,0);
 
-                            buffer = imageFrames.get(i).getPacket();
-                        
-                            InetAddress address = packet.getAddress();
-                            int port = packet.getPort();
-                            packet = new DatagramPacket(EncodingHelper.performXOR(key,buffer.array()), buffer.array().length, address, port);
-                            socket.send(packet);
-                            }
-                    }
 
                     while(slidingWindow.size() > 0) {
 
@@ -113,39 +101,33 @@ public class TFTPServerThread extends Thread {
                         
                             ACKPacket clientResponse = new ACKPacket(ByteBuffer.wrap(EncodingHelper.performXOR(key,packet.getData())));
 
-                            if(clientResponse.getBlockNum() == slidingWindow.get(0).getBlockNum() ) {
+                            if(clientResponse.getBlockNum() == slidingWindow.get(slidingWindow.size()-1).getBlockNum() ) {
                             
 
                             // check if there are anymore frames to add, if so, add to sliding window
                                 if(slidingWindow.get(slidingWindow.size()-1).getBlockNum() != imageFrames.get(imageFrames.size()-1).getBlockNum()) {
-                                    slidingWindow.add(imageFrames.get(slidingWindow.get(slidingWindow.size()-1).getBlockNum()));
+                                    
+                                    int startingIndex = slidingWindow.get(slidingWindow.size()-1).getBlockNum();
+                                    slidingWindow.clear();
+                                    slidingWindow = sendWindow(slidingWindow, imageFrames, windowSize,startingIndex);
 
-                                    buffer = slidingWindow.get(slidingWindow.size() - 1).getPacket();
-                        
-                                    InetAddress address = packet.getAddress();
-                                    int port = packet.getPort();
-                                    packet = new DatagramPacket(EncodingHelper.performXOR(key,buffer.array()), buffer.array().length, address, port);
-                                    socket.send(packet);
+                                }else{
+                                    //int startingIndex = slidingWindow.get(0).getBlockNum();
+                                    slidingWindow.clear();
+
+                                    //sendWindow(slidingWindow, imageFrames, windowSize, startingIndex - 1);
                                 }
-                                slidingWindow.remove(0);
+                                
                             }
                                 
                         } catch(SocketTimeoutException e) {
-                            System.out.println("Oh no, we timed out for " + slidingWindow.get(0).getBlockNum());
+                            System.out.println("Oh no, we timed out for window ending with " + slidingWindow.get(slidingWindow.size()-1).getBlockNum());
                             // if a timeout occurs, resend the window
-                            buffer = slidingWindow.get(0).getPacket();
+                            //buffer = slidingWindow.get(0).getPacket();
 
-                            for(int i = slidingWindow.get(0).getBlockNum(); i < slidingWindow.get(0).getBlockNum() + windowSize; i++) {
-                                if(i <= imageFrames.size()) {
-                                    buffer = imageFrames.get(i-1).getPacket();
-                                    System.out.println(imageFrames.get(i-1).getBlockNum());
-                                
-                                    InetAddress address = packet.getAddress();
-                                    int port = packet.getPort();
-                                    packet = new DatagramPacket(EncodingHelper.performXOR(key,buffer.array()), buffer.array().length, address, port);
-                                    socket.send(packet);
-                                }
-                            }
+                            int startingIndex = slidingWindow.get(0).getBlockNum()-1;
+                            slidingWindow.clear();
+                            slidingWindow = sendWindow(slidingWindow, imageFrames, windowSize, startingIndex);
                         }
                     }
 
@@ -159,6 +141,28 @@ public class TFTPServerThread extends Thread {
             }
         }
         socket.close();
+    }
+
+    public static ArrayList<DataPacket> sendWindow(ArrayList<DataPacket> slidingWindow, ArrayList<DataPacket> imageFrames, int windowSize,
+    int startingIndex) throws IOException {
+        for(int i = startingIndex; i < startingIndex + windowSize; i++) {
+            if(i < imageFrames.size()) {
+                    ByteBuffer buffer;
+                    slidingWindow.add(imageFrames.get(i));
+
+                    buffer = imageFrames.get(i).getPacket();
+
+                    System.out.println(imageFrames.get(i).getBlockNum());
+                    InetAddress address = packet.getAddress();
+                    int port = packet.getPort();
+                    packet = new DatagramPacket(EncodingHelper.performXOR(key,buffer.array()), buffer.array().length, address, port);
+
+                    socket.send(packet);
+                    
+                }
+        }
+        return slidingWindow;
+
     }
 
     public static byte[] getImageBytesFromURL(String urlString) throws IOException {
