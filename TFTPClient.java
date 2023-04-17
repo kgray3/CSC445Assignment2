@@ -47,7 +47,7 @@ public class TFTPClient {
         byte[] bytes = new byte[6];
         ByteBuffer buffer = ByteBuffer.wrap(bytes);
 
-        InetAddress address = InetAddress.getByName("pi.cs.oswego.edu");
+        InetAddress address = InetAddress.getByName("localhost");
 
         // Generate a random client num of 6 digits and send to server
         long randomClientNum = (int) (Math.random() * (999999 - 100000)) + 100000;
